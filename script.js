@@ -390,7 +390,8 @@ async function initAdmin() {
   getAllSessionsCount().catch(() => { });
   refreshRecentActivity().catch(() => { });
   newKeyType.addEventListener('change', () => {
-    newKeyVoiceIdGroup.classList.toggle('hidden', newKeyType.value !== 'tts');
+    const showVoice = newKeyType.value === 'tts' || newKeyType.value === 'multimodal-live';
+    newKeyVoiceIdGroup.classList.toggle('hidden', !showVoice);
   });
   setInterval(() => {
     getAllSessionsCount().catch(() => { });
@@ -1095,7 +1096,8 @@ function renderApiKeys(obj, liveStatus = {}) {
       hasFailedRecently = true;
     }
 
-    const voiceIdHTML = k.type === 'tts'
+    const isVoiceKey = k.type === 'tts' || k.type === 'multimodal-live';
+    const voiceIdHTML = isVoiceKey
       ? `<div class="row" style="margin-top: 0.5rem;">
            <input type="text" class="api-voice-id-input" data-id-voice="${id}" value="${k.voiceId || ''}" placeholder="Voice Name (e.g., Puck, Kore, Zephyr, Charon)">
          </div>`
@@ -1111,7 +1113,7 @@ function renderApiKeys(obj, liveStatus = {}) {
             ${hasFailedRecently && !isActive ? '<span class="status-badge failed">Failed Recently</span>' : ''}
         </div>
       </div>
-            <select data-id-type="${id}"><option>text</option><option>image</option><option>tts</option><option>search</option><option>code</option></select>
+            <select data-id-type="${id}"><option>text</option><option>image</option><option>tts</option><option>search</option><option>code</option><option>whisper</option><option>email</option><option>multimodal-live</option></select>
 
       <label class="row" style="cursor:pointer"><input type="checkbox" data-enabled="${id}" ${k.enabled !== false ? 'checked' : ''}/> enabled</label>
       <button data-del="${id}" class="btn ghost danger">Delete</button>
@@ -1140,7 +1142,7 @@ addApiKeyBtn.addEventListener('click', (e) => withLoader(e.currentTarget, async 
   const update = {};
 
   const keyData = { key, type, enabled: true };
-  if (type === 'tts') {
+  if (type === 'tts' || type === 'multimodal-live') {
     const voiceId = newKeyVoiceId.value.trim();
     if (voiceId) {
       keyData.voiceId = voiceId;
