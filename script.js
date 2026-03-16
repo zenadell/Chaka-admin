@@ -969,19 +969,6 @@ editPersonalityForm.addEventListener('submit', (e) => {
 });
 
 async function saveConfig() {
-  const ref = doc(db, 'config', 'global');
-  const obj = {
-    botName: cfgBotName.value.trim(),
-    welcomeMessage: cfgWelcomeMessage.value.trim(),
-    allowFileUpload: cfgAllowFile.value === 'true',
-    botBubbleColor: cfgBotBubble.value.trim(),
-    userBubbleColor: cfgUserBubble.value.trim(),
-    themeColor: cfgTheme.value.trim(),
-    active: cfgActive.value === 'true'
-  };
-}
-
-async function saveConfig() {
   const obj = getConfigFormData();
   const ref = doc(db, 'config', 'global');
   try {
