@@ -979,12 +979,17 @@ async function saveConfig() {
     themeColor: cfgTheme.value.trim(),
     active: cfgActive.value === 'true'
   };
+}
+
+async function saveConfig() {
+  const obj = getConfigFormData();
+  const ref = doc(db, 'config', 'global');
   try {
     storeConfigBackup('save_config');
     await setDoc(ref, obj, { merge: true });
     logAdminAction('config_save', { keys: Object.keys(obj) });
     showToast('Settings saved!');
-    syncToTurso('config', obj);
+    syncToTurso('config', { ...latestConfig, ...obj });
   } catch (e) { showToast('Failed: ' + e.message, 'error'); }
 }
 saveConfigBtn.addEventListener('click', (e) => withLoader(e.currentTarget, saveConfig));
@@ -1072,6 +1077,7 @@ uploadProfileBtn.addEventListener('click', (e) => withLoader(e.currentTarget, as
     const ref = doc(db, 'config', 'global');
     storeConfigBackup('profile_media_upload');
     await setDoc(ref, { profileImage: url, profileMediaType: resourceType }, { merge: true });
+    syncToTurso('config', { ...latestConfig, profileImage: url, profileMediaType: resourceType });
     renderProfileMediaPreview(url, resourceType);
     logAdminAction('profile_media_upload', { type: resourceType, size: f.size });
 
@@ -1101,6 +1107,10 @@ if (removeProfileMediaBtn) {
     const ref = doc(db, 'config', 'global');
     storeConfigBackup('profile_media_remove');
     await setDoc(ref, { profileImage: deleteField(), profileMediaType: deleteField() }, { merge: true });
+    const newCfg = { ...latestConfig };
+    delete newCfg.profileImage;
+    delete newCfg.profileMediaType;
+    syncToTurso('config', newCfg);
     renderProfileMediaPreview('', '');
     logAdminAction('profile_media_remove');
     showToast('Profile media removed.');
@@ -1204,6 +1214,10 @@ addApiKeyBtn.addEventListener('click', (e) => withLoader(e.currentTarget, async 
   update[`apiKeys.${id}`] = keyData;
   storeConfigBackup('api_key_add');
   await updateDoc(ref, update).catch(async () => { await setDoc(ref, update, { merge: true }); });
+  
+  const newApiKeys = { ...(latestConfig.apiKeys || {}) };
+  newApiKeys[id] = keyData;
+  syncToTurso('config', { ...latestConfig, apiKeys: newApiKeys });
 
   newKeyInput.value = '';
   newKeyVoiceId.value = '';
@@ -1220,6 +1234,11 @@ async function removeApiKey(id) {
   try {
     storeConfigBackup('api_key_remove');
     await updateDoc(ref, updatePayload);
+    
+    const newApiKeys = { ...(latestConfig.apiKeys || {}) };
+    delete newApiKeys[id];
+    syncToTurso('config', { ...latestConfig, apiKeys: newApiKeys });
+
     logAdminAction('api_key_remove', { id });
     showToast('API Key removed.', 'error');
   } catch (error) {
@@ -1234,6 +1253,11 @@ async function toggleApiKeyEnabled(id, enabled) {
   update[`apiKeys.${id}.enabled`] = enabled;
   storeConfigBackup('api_key_toggle');
   await updateDoc(ref, update);
+  
+  const newApiKeys = { ...(latestConfig.apiKeys || {}) };
+  if(newApiKeys[id]) newApiKeys[id].enabled = enabled;
+  syncToTurso('config', { ...latestConfig, apiKeys: newApiKeys });
+
   logAdminAction('api_key_toggle', { id, enabled });
   showToast(`Key ${enabled ? 'enabled' : 'disabled'}.`);
 }
@@ -1242,8 +1266,19 @@ async function updateApiKeyType(id, type) {
   const ref = doc(db, 'config', 'global');
   const update = {};
   update[`apiKeys.${id}.type`] = type;
+  if (type !== 'tts' && type !== 'multimodal-live') { // Also remove voiceId if changing from multimodal-live
+    update[`apiKeys.${id}.voiceId`] = deleteField();
+  }
   storeConfigBackup('api_key_type');
   await updateDoc(ref, update);
+  
+  const newApiKeys = { ...(latestConfig.apiKeys || {}) };
+  if(newApiKeys[id]) {
+      newApiKeys[id].type = type;
+      if (type !== 'tts' && type !== 'multimodal-live') delete newApiKeys[id].voiceId;
+  }
+  syncToTurso('config', { ...latestConfig, apiKeys: newApiKeys });
+
   logAdminAction('api_key_type', { id, type });
   showToast(`Key type updated to ${type}.`);
 }
@@ -1255,6 +1290,11 @@ async function updateApiKeyVoiceId(id, voiceId) {
   try {
     storeConfigBackup('api_key_voice');
     await updateDoc(ref, update);
+    
+    const newApiKeys = { ...(latestConfig.apiKeys || {}) };
+    if(newApiKeys[id]) newApiKeys[id].voiceId = voiceId;
+    syncToTurso('config', { ...latestConfig, apiKeys: newApiKeys });
+
     logAdminAction('api_key_voice', { id, voiceId: !!voiceId });
     showToast(`Voice ID updated.`);
   } catch (e) {
@@ -1384,6 +1424,7 @@ async function saveSuggestionsToFirestore(suggestions) {
   const ref = doc(db, 'config', 'global');
   try {
     await setDoc(ref, { promptSuggestions: suggestions }, { merge: true });
+    syncToTurso('config', { ...latestConfig, promptSuggestions: suggestions });
   } catch (error) {
     showToast(`Failed to save suggestions: ${error.message}`, 'error');
   }
