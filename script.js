@@ -19,6 +19,26 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
+// --- TURSO SYNC BRIDGE ---
+const BACKEND_URL = 'https://chaka-backend-4-v1-1.onrender.com';
+
+/**
+ * After any admin save to Firestore, call this to sync the data to Turso.
+ * type: 'config' | 'personalities' | 'announcements'
+ */
+async function syncToTurso(type) {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/db/sync/${type}`, { method: 'POST' });
+    if (res.ok) {
+      console.log(`✅ Synced ${type} to Turso`);
+    } else {
+      console.warn(`⚠️ Turso sync failed for ${type}:`, await res.text());
+    }
+  } catch (e) {
+    console.warn(`⚠️ Turso sync error for ${type}:`, e.message);
+  }
+}
+
 // ---------- DOM REFS ----------
 const appEl = document.getElementById('app');
 const loginScreen = document.getElementById('loginScreen');
@@ -439,7 +459,8 @@ async function initAdmin() {
         storeConfigBackup('import');
         await setDoc(doc(db, 'config', 'global'), update, { merge: true });
         logAdminAction('config_import', { keys: Object.keys(update) });
-        showToast('Config imported.');
+      showToast('Config imported.');
+      syncToTurso('config');
       } catch (err) {
         showToast('Import failed: ' + err.message, 'error');
       } finally {
@@ -534,6 +555,7 @@ async function handleAnnouncementSubmit() {
 
   await setDoc(doc(db, 'announcements', 'latest'), announcementData);
   showToast('Announcement published successfully!');
+  syncToTurso('announcements');
   announcementMediaFileInput.value = '';
 }
 
@@ -800,6 +822,7 @@ addPersonalityForm.addEventListener('submit', (e) => {
     };
 
     await addDoc(personalitiesRef, newPersonality);
+    syncToTurso('personalities');
 
     if (currentPersonalities.empty) {
       const configRef = doc(db, 'config', 'global');
@@ -842,6 +865,7 @@ async function handleDeletePersonality(docId, isDefault) {
   if (confirm(`Are you sure you want to delete this personality? This cannot be undone.`)) {
     await deleteDoc(doc(db, 'personalities', docId));
     showToast('Personality deleted.', 'error');
+    syncToTurso('personalities');
   }
 }
 
@@ -915,6 +939,7 @@ editPersonalityForm.addEventListener('submit', (e) => {
     }
 
     showToast('Personality updated successfully!');
+    syncToTurso('personalities');
     closeEditModal();
   });
 });
@@ -935,6 +960,7 @@ async function saveConfig() {
     await setDoc(ref, obj, { merge: true });
     logAdminAction('config_save', { keys: Object.keys(obj) });
     showToast('Settings saved!');
+    syncToTurso('config');
   } catch (e) { showToast('Failed: ' + e.message, 'error'); }
 }
 saveConfigBtn.addEventListener('click', (e) => withLoader(e.currentTarget, saveConfig));
@@ -945,6 +971,7 @@ toggleActiveBtn.addEventListener('click', (e) => withLoader(e.currentTarget, asy
   await setDoc(ref, { active: !current }, { merge: true });
   logAdminAction('config_toggle_active', { active: !current });
   showToast(`Bot ${!current ? 'activated' : 'deactivated'}.`);
+  syncToTurso('config');
 }));
 saveQuickConfig.addEventListener('click', (e) => withLoader(e.currentTarget, async () => {
   const ref = doc(db, 'config', 'global');
@@ -957,6 +984,7 @@ saveQuickConfig.addEventListener('click', (e) => withLoader(e.currentTarget, asy
   await setDoc(ref, appearanceSettings, { merge: true });
   logAdminAction('config_save_appearance', { keys: Object.keys(appearanceSettings) });
   showToast('Appearance saved!');
+  syncToTurso('config');
 }));
 uploadProfileBtn.addEventListener('click', (e) => withLoader(e.currentTarget, async () => {
   const f = profileImageFile.files[0];
