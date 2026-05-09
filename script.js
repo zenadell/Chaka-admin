@@ -963,7 +963,7 @@ editPersonalityForm.addEventListener('submit', (e) => {
     }
 
     showToast('Personality updated successfully!');
-    syncToTurso('personalities', { id: docId, ...updatedData });
+    syncToTurso('personalities', { id: id, ...updateData });
     closeEditModal();
   });
 });
